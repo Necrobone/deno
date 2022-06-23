@@ -1,3 +1,19 @@
-import { serve } from "https://deno.land/std@0.145.0/http/server.ts";
+import { Application, Router } from "https://deno.land/x/oak/mod.ts";
 
-serve((_req) => new Response("Hello, world"), { port: 3000 });
+const router = new Router();
+router.get("/", (ctx) => {
+    ctx.response.body = `<!DOCTYPE html>
+    <html>
+      <head><title>Hello oak!</title><head>
+      <body>
+        <h1>Hello oak!</h1>
+      </body>
+    </html>
+  `;
+});
+
+const app = new Application();
+app.use(router.routes());
+app.use(router.allowedMethods());
+
+app.listen({ port: 8080 });
