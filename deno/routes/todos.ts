@@ -1,49 +1,56 @@
-import {Router} from "https://deno.land/x/oak/mod.ts";
+import { Router } from 'https://deno.land/x/oak/mod.ts';
+import { ObjectId } from 'https://deno.land/x/mongo@v0.8.0/mod.ts';
+
+import { getDb } from '../helpers/db_client.ts';
 
 const router = new Router();
 
 interface Todo {
-    id: string,
-    text: string
+  id?: string;
+  text: string;
 }
 
-let todos: Todo[] = [];
-
-router.get('/todos', (context) => {
-    context.response.body = {todos};
+router.get('/todos', async (ctx) => {
+  const todos = await getDb().collection('todos').find(); // { _id: ObjectId(), text: '...' }[]
+  const transformedTodos = todos.map(
+    (todo: { _id: ObjectId; text: string }) => {
+      return { id: todo._id.$oid, text: todo.text };
+    }
+  );
+  ctx.response.body = { todos: transformedTodos };
 });
 
-router.post('/todos', async (context) => {
-    const data = await context.request.body().value;
-    const todo: Todo = {
-        id: new Date().toISOString(),
-        text: data.text
-    };
+router.post('/todos', async (ctx) => {
+  const data = await ctx.request.body();
+  const newTodo: Todo = {
+    // id: new Date().toISOString(),
+    text: data.value.text,
+  };
 
-    todos.push(todo);
+  const id = await getDb().collection('todos').insertOne(newTodo);
 
-    context.response.body = {message: 'Created Todo!', todo: todo}
+  newTodo.id = id.$oid;
+
+  ctx.response.body = { message: 'Created todo!', todo: newTodo };
 });
 
-router.put('/todos/:id', async (context) => {
-    const id = context.params.id;
-    const data = await context.request.body().value;
-    const index = todos.findIndex(todo => {
-       return todo.id === id;
-    });
+router.put('/todos/:todoId', async (ctx) => {
+  const tid = ctx.params.todoId!;
+  const data = await ctx.request.body();
 
-    todos[index].text = data.text;
+  await getDb()
+    .collection('todos')
+    .updateOne({ _id: ObjectId(tid) }, { $set: { text: data.value.text } });
 
-    context.response.body = { message: 'Updated Todo!', todo: todos[index] };
+  ctx.response.body = { message: 'Updated todo' };
 });
 
-router.delete('/todos/:id', (context) => {
-    const id = context.params.id;
-    todos = todos.filter(todo => {
-        return todo.id !== id;
-    });
+router.delete('/todos/:todoId', async (ctx) => {
+  const tid = ctx.params.todoId!;
 
-    context.response.body = { message: 'Deleted todo' };
+  await getDb().collection('todos').deleteOne({ _id: ObjectId(tid) });
+
+  ctx.response.body = { message: 'Deleted todo' };
 });
 
 export default router;
